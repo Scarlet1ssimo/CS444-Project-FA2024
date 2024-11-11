@@ -347,6 +347,10 @@ result_ours['solution_lengths_count'] = {
     i: result_ours["solution_lengths"].count(i)
     for i in range(min(result_ours["solution_lengths"]), max(result_ours["solution_lengths"]))
 }
+
+with open('result_ours.pkl', 'wb') as f:
+    pickle.dump(result_ours, f)
+
 f"Successfully solved {len(result_ours['times'])} cases out of {len(result_ours['solutions'])}"
 
 # %%
