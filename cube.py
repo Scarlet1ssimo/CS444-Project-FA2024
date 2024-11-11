@@ -91,7 +91,7 @@ class QTM:
 class QTMIX(QTM):
     """
     Index based representation of QTM (Quarter Turn Metric) cube.
-    U   D   R,  L,  F   B
+    U   D   R   L   F   B
     U'  D'  R'  L'  F'  B'
     Numbered from 0 to 11
     """
@@ -120,7 +120,12 @@ class QTMIX(QTM):
         for j in QTM.MOVES:
             if not QTM.isCancel(i, j):  # cannot cancel out
                 MOVES_NO_CANCEL[-1].append(CHAR2NUM[j])
-    FAST_MAPR_IX = FAST_MAPR[:, ::2, :].reshape(-1, 20)
+    FAST_MAPR_IX = np.zeros((12, 20), dtype=int)
+    for i in range(6):
+        for j in range(2):
+            for k in range(20):
+                FAST_MAPR_IX[i+j*6][k] = FAST_MAPR[i][j*2][k]
+    
 
     def move(state, moveIx: int):
         """
@@ -169,6 +174,14 @@ class Cube:
 
     def __init__(self, mode=QTMIX):
         self.reset()
+        if isinstance(mode, str):
+            if mode == "QTM":
+                self.mode = QTM
+            elif mode == "QTMIX":
+                self.mode = QTMIX
+            else:
+                raise ValueError("Invalid mode.")
+            return
         self.mode = mode
 
     def get_state(self):
@@ -183,9 +196,13 @@ class Cube:
     def move(self, move):
         self.mode.move(self.state, move)
 
-    def apply(self, moves: str):
-        for i in moves.split():
-            self.mode.apply(self.state, i)
+    def apply(self, moves):
+        if isinstance(moves, list):
+            for i in moves:
+                self.mode.apply(self.state, i)
+        elif isinstance(moves, str):
+            for i in moves.split():
+                self.mode.apply(self.state, i)
 
     def scrambler(self, scramble_length=26):
         """
@@ -248,6 +265,13 @@ if __name__ == '__main__':
             assert QTM.isOpposite(ii, jj) == QTMIX.isOpposite(i, j)
 
     # This should be able to test all valid moves.
+    for i in range(6):
+        for j in range(2):
+            for k in range(20):
+                print(QTMIX.FAST_MAPR_IX.shape)
+                print(QTMIX.FAST_MAPR_IX[i+j*6][k])
+                print(FAST_MAPR[i][j*2][k])
+                assert QTMIX.FAST_MAPR_IX[i+j*6][k] == FAST_MAPR[i][j*2][k]
 
     cube = Cube(QTMIX)
     cube.apply("L R U D F B D' F' B' L' R' U' L2 R2 U2 D2 F2 B2")
@@ -256,13 +280,13 @@ if __name__ == '__main__':
          2, 1, 0, 1, 5, 0, 5, 5, 2, 3, 1, 0, 1, 4, 3, 3, 1, 2, 4, 2, 2, 0,
          1, 2, 2, 1, 3, 5, 3, 3, 0, 1])).all()
 
-    cube = Cube(QTM)
+    cube = Cube(QTMIX)
     S = cube.scrambler(26)
     s = []
     for i in range(26):
         _, move = next(S)
         s.append(move)
-    print(' '.join(s))
+    # print(' '.join(s))
     for i in reversed(s):
         i = cube.mode.getCancel(i)
         cube.move(i)

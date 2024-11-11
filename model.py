@@ -89,6 +89,13 @@ class Model(nn.Module):
         return logits
 
 
+def get_model():
+    model = Model()
+    model.to(device)
+    model.load_state_dict(torch.load('10000steps.pth'))
+    return model
+
+
 if __name__ == "__main__":
     # Define `model` and load it on device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

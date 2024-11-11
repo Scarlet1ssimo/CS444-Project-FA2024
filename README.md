@@ -4,9 +4,10 @@
 
 - [x] Implement cube rotation
 - [x] Visualize cube states
-- [ ] Get data to train
-- [ ] Setup model
-- [ ] Train and tune
+- [x] Get data to train
+- [x] Setup model
+- [x] Train and tune
+- [ ] Validate model accuracy ~99.77%
 - [ ] Implement search algorithm
 
 ## References
