@@ -1,6 +1,36 @@
 import cv2
 import numpy as np
 
+COLOR_DICT = {
+    "yellow": 0,
+    "white": 1,
+    "blue": 2,
+    "green": 3,
+    "orange": 4,
+    "red": 5,
+    "unknown": -1,
+}
+
+## might have to finetune bounds for different cubes
+COLOR_BOUNDS = {
+    "white": ((0, 0, 200), (180, 50, 255)),   
+    "yellow": ((20, 100, 100), (35, 255, 255)),
+    "orange": ((3, 100, 100), (10, 255, 255)), 
+    "red": ((170, 100, 100), (180, 255, 255)),
+    # "red": ((0, 100, 100), (3, 255, 255)), 
+    "blue": ((100, 90, 75), (130, 255, 255)), 
+    "green": ((40, 50, 50), (80, 255, 255)), 
+}
+
+NEXT_FACE = {
+    0: "Yellow in Front, Orange on Top",
+    1: "White in Front, Red on Top",
+    2: "Blue in Front, Yellow on Top",
+    3: "Green in Front, Yellow on Top",
+    4: "Orange in Front, Yellow on Top",
+    5: "Red in Front, Yellow on Top"
+}
+
 def draw_grid(frame):
     height, width, _ = frame.shape
     rows, cols = 3, 3
@@ -21,35 +51,6 @@ def get_color(box):
     hsv_box = cv2.cvtColor(box, cv2.COLOR_BGR2HSV)
     avg_color = np.mean(hsv_box, axis=(0, 1))
     return avg_color
-
-COLOR_DICT = {
-    "green": 0,
-    "red": 1,
-    "blue": 2,
-    "orange": 3,
-    "white": 4,
-    "yellow": 5,
-    "unknown": -1,
-}
-
-COLOR_BOUNDS = {
-    "white": ((0, 0, 200), (180, 50, 255)),   
-    "yellow": ((20, 100, 100), (35, 255, 255)),
-    "orange": ((3, 100, 100), (10, 255, 255)), 
-    "red": ((170, 100, 100), (180, 255, 255)),
-    "red": ((0, 100, 100), (3, 255, 255)), 
-    "blue": ((100, 90, 75), (130, 255, 255)), 
-    "green": ((40, 50, 50), (80, 255, 255)), 
-}
-
-NEXT_FACE = {
-    0: "White on Top, Green in Front",
-    1: "White on Top, Red in Front",
-    2: "White on Top, Blue in Front",
-    3: "White on Top, Orange in Front",
-    4: "Green on Top, White in Front",
-    5: "Green on Top, Yellow in Front"
-}
 
 def preprocess_region(region):
     hsv_region = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
@@ -160,6 +161,7 @@ def get_state():
     
     cap.release()
     cv2.destroyAllWindows()
+    cube_state = np.flip(cube_state.transpose(0, 2, 1), 2).reshape(-1)
     return cube_state
 
 
