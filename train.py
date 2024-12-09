@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import time
 import random
 import pickle
@@ -19,12 +20,29 @@ print(f'device: {device}')
 print(f'os.cpu_count(): {os.cpu_count()}')
 from cube import Cube
 env = Cube()
-from model import Model
-model = Model()
-model.to(device)
 
 from config import TrainConfig
+import argparse
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--output-dir", type=str, default="./")
+parser.add_argument("--num-residual-blocks", type=int, default=4)
+parser.add_argument("--use-bn", type=bool, default=True)
+parser.add_argument("--nonlinearity", type=str, default="relu")
+args = parser.parse_args()
+if args.nonlinearity == "relu":
+    nonlinearity=nn.ReLU()
+elif args.nonlinearity == "leakyrelu":
+    nonlinearity=nn.LeakyReLU(0.01)
+elif args.nonlinearity == "gelu":
+    nonlinearity=nn.GELU()
+elif args.nonlinearity == "ReLU6":
+    nonlinearity=nn.ReLU6()
+output_dir=Path(args.output_dir)
+
+from model import Model
+model = Model(num_residual_blocks=args.num_residual_blocks, use_bn=args.use_bn, nonlinearity=nonlinearity)
+model.to(device)
 
 class ScrambleGenerator(torch.utils.data.Dataset):
     def __init__(
@@ -73,7 +91,7 @@ def plot_loss_curve(h):
     ax.set_xlabel("Steps")
     ax.set_ylabel("Cross-entropy loss")
     ax.set_xscale("log")
-    plt.show()
+    plt.savefig(output_dir/"loss_curve.png")
 
 def train(model, dataloader):
     model.train()
@@ -99,7 +117,7 @@ def train(model, dataloader):
             clear_output()
             plot_loss_curve(h)
         if TrainConfig.INTERVAL_SAVE and i % TrainConfig.INTERVAL_SAVE == 0:
-            torch.save(model.state_dict(), f"{i}steps.pth")
+            torch.save(model.state_dict(), output_dir/f"{i}steps.pth")
             print("Model saved.")
     print(f"Trained on data equivalent to {TrainConfig.batch_size_per_depth * TrainConfig.num_steps} solves.")
     return model

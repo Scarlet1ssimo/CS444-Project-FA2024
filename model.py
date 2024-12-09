@@ -8,10 +8,10 @@ class LinearBlock(nn.Module):
     Linear layer with ReLU and optional BatchNorm
     """
 
-    def __init__(self, input_dim, output_dim, use_bn=True):
+    def __init__(self, input_dim, output_dim, use_bn=True, nonlinearity=nn.ReLU()):
         super(LinearBlock, self).__init__()
         self.fc = nn.Linear(input_dim, output_dim)
-        self.relu = nn.ReLU()
+        self.relu = nonlinearity
         self.use_bn = use_bn
         if self.use_bn:
             self.bn = nn.BatchNorm1d(output_dim)
@@ -29,10 +29,10 @@ class ResidualBlock(nn.Module):
     Residual block with customizable number of LinearBlocks
     """
 
-    def __init__(self, embed_dim, num_layers=2, use_bn=True):
+    def __init__(self, embed_dim, num_layers=2, use_bn=True, nonlinearity=nn.ReLU()):
         super(ResidualBlock, self).__init__()
         self.layers = nn.ModuleList(
-            [LinearBlock(embed_dim, embed_dim, use_bn)
+            [LinearBlock(embed_dim, embed_dim, use_bn, nonlinearity)
              for _ in range(num_layers)]
         )
 
@@ -50,19 +50,19 @@ class Model(nn.Module):
     """
 
     def __init__(self, input_dim=324, embed_dim=5000, hidden_dim=1000, output_dim=12,
-                 num_linear_layers=1, num_residual_blocks=4, use_bn=True):
+                 num_linear_layers=1, num_residual_blocks=4, use_bn=True, nonlinearity=nn.ReLU()):
         super(Model, self).__init__()
         self.input_dim = input_dim
-        self.embedding = LinearBlock(input_dim, embed_dim, use_bn=use_bn)
+        self.embedding = LinearBlock(input_dim, embed_dim, use_bn=use_bn, nonlinearity=nonlinearity)
 
         # Add configurable number of linear blocks
         self.linear_layers = nn.ModuleList([
-            LinearBlock(embed_dim, hidden_dim, use_bn=use_bn) for _ in range(num_linear_layers)
+            LinearBlock(embed_dim, hidden_dim, use_bn=use_bn, nonlinearity=nonlinearity) for _ in range(num_linear_layers)
         ])
 
         # Add configurable number of residual blocks
         self.residual_blocks = nn.ModuleList([
-            ResidualBlock(hidden_dim, use_bn=use_bn) for _ in range(num_residual_blocks)
+            ResidualBlock(hidden_dim, use_bn=use_bn, nonlinearity=nonlinearity) for _ in range(num_residual_blocks)
         ])
 
         # Output layer

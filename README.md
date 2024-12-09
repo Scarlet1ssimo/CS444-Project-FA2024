@@ -9,6 +9,16 @@
 - [x] Train and tune
 - [ ] Validate model accuracy ~99.77%
 - [ ] Implement search algorithm
+- [ ] Test on 
+    - [ ] number of layers
+    - [ ] if use batch norm
+    - [ ] types of nonlinear
+- [ ] Try plot loss for them
+- [ ] Try compare
+    - [ ] time to solve 
+    - [ ] accuracy prediction
+    - [ ] solution length
+    - [ ] percent of solvable
 
 ## References
 
