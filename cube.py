@@ -190,6 +190,9 @@ class Cube:
     def reset(self):
         self.state = np.arange(54)//9
 
+    def set_state(self, state: np.array):
+        self.state = state
+
     def is_solved(self):
         return (self.state == np.arange(54)//9).all()
 
