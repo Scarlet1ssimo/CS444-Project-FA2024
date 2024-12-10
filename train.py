@@ -27,21 +27,16 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--output-dir", type=str, default="./")
 parser.add_argument("--num-residual-blocks", type=int, default=4)
-parser.add_argument("--use-bn", type=bool, default=True)
+parser.add_argument("--use-bn", type=int, default=1)
 parser.add_argument("--nonlinearity", type=str, default="relu")
 args = parser.parse_args()
-if args.nonlinearity == "relu":
-    nonlinearity=nn.ReLU()
-elif args.nonlinearity == "leakyrelu":
-    nonlinearity=nn.LeakyReLU(0.01)
-elif args.nonlinearity == "gelu":
-    nonlinearity=nn.GELU()
-elif args.nonlinearity == "ReLU6":
-    nonlinearity=nn.ReLU6()
+
+print(f'args: {args}')
 output_dir=Path(args.output_dir)
 
 from model import Model
-model = Model(num_residual_blocks=args.num_residual_blocks, use_bn=args.use_bn, nonlinearity=nonlinearity)
+model = Model(num_residual_blocks=args.num_residual_blocks, use_bn=args.use_bn, nonlinearity=args.nonlinearity)
+print(model.eval())
 model.to(device)
 
 class ScrambleGenerator(torch.utils.data.Dataset):
@@ -113,12 +108,10 @@ def train(model, dataloader):
         optimizer.step()
 
         h.append(loss.item())
-        if TrainConfig.INTERVAL_PLOT and i % TrainConfig.INTERVAL_PLOT == 0:
-            clear_output()
-            plot_loss_curve(h)
         if TrainConfig.INTERVAL_SAVE and i % TrainConfig.INTERVAL_SAVE == 0:
             torch.save(model.state_dict(), output_dir/f"{i}steps.pth")
             print("Model saved.")
+    plot_loss_curve(h)
     print(f"Trained on data equivalent to {TrainConfig.batch_size_per_depth * TrainConfig.num_steps} solves.")
     return model
 

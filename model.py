@@ -8,19 +8,28 @@ class LinearBlock(nn.Module):
     Linear layer with ReLU and optional BatchNorm
     """
 
-    def __init__(self, input_dim, output_dim, use_bn=True, nonlinearity=nn.ReLU()):
+    def __init__(self, input_dim, output_dim, use_bn=True, nonlinearity="relu"):
         super(LinearBlock, self).__init__()
         self.fc = nn.Linear(input_dim, output_dim)
-        self.relu = nonlinearity
+        if nonlinearity.casefold() == "relu".casefold():
+            self.relu = nn.ReLU(inplace=False)
+        elif nonlinearity.casefold() == "leakyrelu".casefold():
+            self.relu = nn.LeakyReLU(0.01, inplace=False)
+        elif nonlinearity.casefold() == "gelu".casefold():
+            self.relu = nn.GELU()
+        elif nonlinearity.casefold() == "ReLU6".casefold():
+            self.relu = nn.ReLU6(inplace=False)
+        else:
+            raise ValueError(f"Unknown nonlinearity: {nonlinearity}")
         self.use_bn = use_bn
         if self.use_bn:
             self.bn = nn.BatchNorm1d(output_dim)
 
     def forward(self, x):
         x = self.fc(x)
-        x = self.relu(x)
         if self.use_bn:
             x = self.bn(x)
+        x = self.relu(x)
         return x
 
 
@@ -29,7 +38,7 @@ class ResidualBlock(nn.Module):
     Residual block with customizable number of LinearBlocks
     """
 
-    def __init__(self, embed_dim, num_layers=2, use_bn=True, nonlinearity=nn.ReLU()):
+    def __init__(self, embed_dim, num_layers=2, use_bn=True, nonlinearity="relu"):
         super(ResidualBlock, self).__init__()
         self.layers = nn.ModuleList(
             [LinearBlock(embed_dim, embed_dim, use_bn, nonlinearity)
@@ -40,8 +49,7 @@ class ResidualBlock(nn.Module):
         residual = x
         for layer in self.layers:
             x = layer(x)
-        x += residual  # skip connection
-        return x
+        return x + residual
 
 
 class Model(nn.Module):
@@ -50,10 +58,11 @@ class Model(nn.Module):
     """
 
     def __init__(self, input_dim=324, embed_dim=5000, hidden_dim=1000, output_dim=12,
-                 num_linear_layers=1, num_residual_blocks=4, use_bn=True, nonlinearity=nn.ReLU()):
+                 num_linear_layers=1, num_residual_blocks=4, use_bn=True, nonlinearity="relu"):
         super(Model, self).__init__()
         self.input_dim = input_dim
-        self.embedding = LinearBlock(input_dim, embed_dim, use_bn=use_bn, nonlinearity=nonlinearity)
+        self.embedding = LinearBlock(
+            input_dim, embed_dim, use_bn=use_bn, nonlinearity=nonlinearity)
 
         # Add configurable number of linear blocks
         self.linear_layers = nn.ModuleList([
