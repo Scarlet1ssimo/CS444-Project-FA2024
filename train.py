@@ -36,8 +36,10 @@ output_dir=Path(args.output_dir)
 
 from model import Model
 model = Model(num_residual_blocks=args.num_residual_blocks, use_bn=args.use_bn, nonlinearity=args.nonlinearity)
+model_name = f"normal_res{args.num_residual_blocks}_bn{args.use_bn}_nonlin{args.nonlinearity}"
 print(model.eval())
 model.to(device)
+
 
 class ScrambleGenerator(torch.utils.data.Dataset):
     def __init__(
@@ -48,10 +50,10 @@ class ScrambleGenerator(torch.utils.data.Dataset):
     ):
         self.num_workers = num_workers
         self.max_depth = max_depth
-        # self.envs = [Cube() for _ in range(num_workers)]
-        # self.generators = [env.scrambler(self.max_depth) for env in self.envs]
-
         self.total_samples = total_samples
+
+    def update_max_depth(self, max_depth):
+        self.max_depth = max_depth
 
     def __len__(self):
         return self.total_samples
@@ -76,9 +78,8 @@ class ScrambleGenerator(torch.utils.data.Dataset):
 dataloader = torch.utils.data.DataLoader(
     ScrambleGenerator(),
     num_workers=0,
-    batch_size=TrainConfig.batch_size_per_depth
+    batch_size=round(TrainConfig.batch_size_per_depth/10) ## changing for transformer training
 )
-
 
 def plot_loss_curve(h):
     fig, ax = plt.subplots(1, 1)
@@ -86,17 +87,16 @@ def plot_loss_curve(h):
     ax.set_xlabel("Steps")
     ax.set_ylabel("Cross-entropy loss")
     ax.set_xscale("log")
-    plt.savefig(output_dir/"loss_curve.png")
+    plt.show()
 
-def train(model, dataloader):
+def train_transformer(model, dataloader):
     model.train()
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=TrainConfig.learning_rate)
     g = iter(dataloader)
     h = []
     ctx = torch.cuda.amp.autocast(dtype=torch.float16) if TrainConfig.ENABLE_FP16 else nullcontext()
-
-    for i in trange(1, TrainConfig.num_steps + 1):
+    for i in trange(1, 10 * TrainConfig.num_steps + 1):
         batch_x, batch_y = next(g)
         batch_x, batch_y = batch_x.reshape(-1, 54).to(device), batch_y.reshape(-1).to(device)
 
@@ -108,11 +108,102 @@ def train(model, dataloader):
         optimizer.step()
 
         h.append(loss.item())
-        if TrainConfig.INTERVAL_SAVE and i % TrainConfig.INTERVAL_SAVE == 0:
-            torch.save(model.state_dict(), output_dir/f"{i}steps.pth")
-            print("Model saved.")
-    plot_loss_curve(h)
+        print(f"\t Loss: {loss.item()}")
+    
+    torch.save(model.state_dict(), f"{model_name}.pth")
+    print("Model saved.")
     print(f"Trained on data equivalent to {TrainConfig.batch_size_per_depth * TrainConfig.num_steps} solves.")
     return model
 
-model = train(model, dataloader)
+def train_curriculum(model, generator):
+    model.train()
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=TrainConfig.learning_rate, weight_decay = 1e-4)
+    
+    ctx = torch.cuda.amp.autocast(
+        dtype=torch.float16) if TrainConfig.ENABLE_FP16 else nullcontext()
+
+    dataloader = torch.utils.data.DataLoader(
+        generator,
+        num_workers=0,
+        batch_size=round(TrainConfig.batch_size_per_depth/10)   ## modified
+    )
+    c_losses = { }
+
+    ## num_iterations of each max scramble length (from 1 to 26)
+    for curr_max in trange(1, 27):
+        depth_losses = []
+        num_iterations = round(100 * curr_max)
+        for i in range(num_iterations):
+            generator.max_depth = curr_max
+
+            batch_x, batch_y = next(iter(dataloader))
+            batch_x, batch_y = batch_x.reshape(-1, 54).to(device), batch_y.reshape(-1).to(device)
+
+            with ctx:
+                pred_y = model(batch_x)
+                loss = loss_fn(pred_y, batch_y)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            depth_losses.append(loss.item())
+        print(f"Loss for {curr_max} step: {np.mean(depth_losses[-10:])} with {num_iterations} iterations")
+        c_losses[curr_max] = depth_losses
+        
+    print(f"Incremental Curriculum training done, starting training on max length scrambles")
+
+    final_losses = []
+    for i in trange(1, TrainConfig.num_steps + 1):
+        generator.max_depth = 26
+
+        batch_x, batch_y = next(iter(dataloader))
+        batch_x, batch_y = batch_x.reshape(-1, 54).to(device), batch_y.reshape(-1).to(device)
+
+        with ctx:
+            pred_y = model(batch_x)
+            loss = loss_fn(pred_y, batch_y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            print(f"\t Loss: {loss.item()}")
+
+        final_losses.append(loss.item())
+    print(f"training complete!")
+    torch.save(model.state_dict(), f"{model_name}.pth")
+    print("Model saved.")
+
+    return model
+
+# model = train_transformer(model, dataloader)  ## for normal training
+model = train_curriculum(model, ScrambleGenerator(max_depth = 1)) ## for curriculum training
+
+print("Running validation:")
+# Validate Accuracy
+def validate(model, num_samples=100):
+    model.eval()
+    correct = 0
+    cnt = 0
+    with torch.no_grad():
+        for _ in range(num_samples):
+            env = Cube()
+            generator = env.scrambler(TrainConfig.max_depth)
+            sub_correct = 0
+            sub_cnt = 0
+            for i in range(TrainConfig.max_depth):
+                state, move = next(generator)
+                input = torch.tensor(state, dtype = torch.int64).to(device).unsqueeze(0)
+                pred = model(input).argmax().item()
+                if pred == move:
+                    sub_correct += 1
+                sub_cnt+=1
+            correct += sub_correct
+            cnt += sub_cnt
+            print(f"Accuracy for subtask: {sub_correct} / {sub_cnt} = {sub_correct/sub_cnt:.2%}. Total accuracy: {correct / cnt:.2%}")
+    return correct / cnt
+
+
+validate(model)

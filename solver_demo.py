@@ -3,6 +3,7 @@ import matplotlib.patches as patches
 import numpy as np
 from cube import Cube
 from get_state import get_state
+from solver import my_solver
 
 
 
@@ -37,4 +38,13 @@ def visualize(state):
     plt.show()
 
 visualize(cube.get_state())
-
+full = my_solver(cube)
+if full[0] == False:
+    print(f"No solution found!")
+else:
+    array = full[1]['solutions']
+    solution = array[0]
+    for a in array[1:]:
+        solution += f" {a}"
+    print(f"Solution Found: {solution}")
+    print(f"Took: {full[1]['times']} seconds and {full[1]['num_nodes_generated']} nodes")
